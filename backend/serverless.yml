@@ -1,0 +1,226 @@
+service: polling-app
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  environment:
+    USERS_TABLE: ${self:service}-users-${self:provider.stage}
+    POLLS_TABLE: ${self:service}-polls-${self:provider.stage}
+    VOTES_TABLE: ${self:service}-votes-${self:provider.stage}
+    JWT_SECRET: ${param:jwtSecret}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchWriteItem
+          Resource:
+            - !GetAtt UsersTable.Arn
+            - !GetAtt PollsTable.Arn
+            - !GetAtt VotesTable.Arn
+            - !Join ['/', [!GetAtt UsersTable.Arn, 'index', '*']]
+            - !Join ['/', [!GetAtt PollsTable.Arn, 'index', '*']]
+            - !Join ['/', [!GetAtt VotesTable.Arn, 'index', '*']]
+  httpApi:
+    cors:
+      allowedOrigins:
+        - http://localhost:5173
+        - http://localhost:5174
+        - http://localhost:5175
+        - http://localhost:3000
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+
+plugins:
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3001
+
+params:
+  dev:
+    jwtSecret: local-dev-secret-not-for-production
+  prod:
+    jwtSecret: ${ssm:/pollapp/prod/jwt-secret}
+
+
+functions:
+  # Auth
+  register:
+    handler: src/handlers/auth.register
+    events:
+      - httpApi:
+          path: /api/auth/register
+          method: post
+
+  login:
+    handler: src/handlers/auth.login
+    events:
+      - httpApi:
+          path: /api/auth/login
+          method: post
+
+  getMe:
+    handler: src/handlers/auth.getMe
+    events:
+      - httpApi:
+          path: /api/auth/me
+          method: get
+
+  # Users (Super Admin)
+  getUsers:
+    handler: src/handlers/users.getUsers
+    events:
+      - httpApi:
+          path: /api/users
+          method: get
+
+  createUser:
+    handler: src/handlers/users.createUser
+    events:
+      - httpApi:
+          path: /api/users
+          method: post
+
+  deleteUser:
+    handler: src/handlers/users.deleteUser
+    events:
+      - httpApi:
+          path: /api/users/{userId}
+          method: delete
+
+  updateUserRole:
+    handler: src/handlers/users.updateUserRole
+    events:
+      - httpApi:
+          path: /api/users/{userId}/role
+          method: put
+
+  # Polls
+  createPoll:
+    handler: src/handlers/polls.createPoll
+    events:
+      - httpApi:
+          path: /api/polls
+          method: post
+
+  getPolls:
+    handler: src/handlers/polls.getPolls
+    events:
+      - httpApi:
+          path: /api/polls
+          method: get
+
+  getPoll:
+    handler: src/handlers/polls.getPoll
+    events:
+      - httpApi:
+          path: /api/polls/{pollId}
+          method: get
+
+  updatePoll:
+    handler: src/handlers/polls.updatePoll
+    events:
+      - httpApi:
+          path: /api/polls/{pollId}
+          method: put
+
+  deletePoll:
+    handler: src/handlers/polls.deletePoll
+    events:
+      - httpApi:
+          path: /api/polls/{pollId}
+          method: delete
+
+  # Votes
+  castVote:
+    handler: src/handlers/votes.castVote
+    events:
+      - httpApi:
+          path: /api/polls/{pollId}/vote
+          method: post
+
+  getResults:
+    handler: src/handlers/votes.getResults
+    events:
+      - httpApi:
+          path: /api/polls/{pollId}/results
+          method: get
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.USERS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: email-index
+            KeySchema:
+              - AttributeName: email
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    PollsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.POLLS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: pollId
+            AttributeType: S
+          - AttributeName: createdBy
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pollId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: createdBy-index
+            KeySchema:
+              - AttributeName: createdBy
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    VotesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.VOTES_TABLE}
+        AttributeDefinitions:
+          - AttributeName: pollId
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pollId
+            KeyType: HASH
+          - AttributeName: userId
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST

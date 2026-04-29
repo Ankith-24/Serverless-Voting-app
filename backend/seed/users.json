@@ -1,0 +1,26 @@
+[
+  {
+    "userId": "sa-001",
+    "name": "Super Admin",
+    "email": "admin@pollapp.com",
+    "passwordHash": "$2a$10$8KzaNdKIMyOkASCmkHF.eOY4pXMgpVv5Gv8PDXGQ3gVz3hhqZYBHi",
+    "role": "SUPER_ADMIN",
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "userId": "admin-001",
+    "name": "Poll Admin",
+    "email": "polladmin@pollapp.com",
+    "passwordHash": "$2a$10$8KzaNdKIMyOkASCmkHF.eOY4pXMgpVv5Gv8PDXGQ3gVz3hhqZYBHi",
+    "role": "ADMIN",
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "userId": "voter-001",
+    "name": "Test Voter",
+    "email": "voter@pollapp.com",
+    "passwordHash": "$2a$10$8KzaNdKIMyOkASCmkHF.eOY4pXMgpVv5Gv8PDXGQ3gVz3hhqZYBHi",
+    "role": "VOTER",
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  }
+]
