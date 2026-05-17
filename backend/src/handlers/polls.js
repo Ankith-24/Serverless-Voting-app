@@ -154,6 +154,7 @@ export async function getPoll(event) {
       poll: result.Item,
       hasVoted: !!voteResult.Item,
       userVote: voteResult.Item || null,
+      serverTime: new Date().toISOString(),
     });
   } catch (err) {
     logger.error({ err, pollId, action: 'getPoll' }, 'GetPoll error');

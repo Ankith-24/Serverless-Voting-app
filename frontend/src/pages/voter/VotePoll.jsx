@@ -14,12 +14,14 @@ export default function VotePoll() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
+  const [serverTime, setServerTime] = useState(null);
 
   const loadPoll = async () => {
     try {
       const res = await api.get(`/api/polls/${pollId}`);
       setPoll(res.data.poll);
       setHasVoted(res.data.hasVoted);
+      setServerTime(res.data.serverTime);
       if (res.data.hasVoted) {
         const resultsRes = await api.get(`/api/polls/${pollId}/results`);
         setResults(resultsRes.data);
@@ -53,7 +55,8 @@ export default function VotePoll() {
   if (loading) return <div className="loading-page"><div className="spinner" /></div>;
   if (!poll) return <div className="empty-state"><h3>Poll not found</h3></div>;
 
-  const now = new Date();
+  // Use server time for poll status
+  const now = serverTime ? new Date(serverTime) : new Date();
   const isActive = now >= new Date(poll.startDate) && now <= new Date(poll.endDate);
   const isEnded = now > new Date(poll.endDate);
 
