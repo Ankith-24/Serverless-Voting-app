@@ -6,8 +6,9 @@ import logger from '../utils/logger.js';
 import { parseBody } from '../utils/validators.js';
 
 /**
- * POST /api/polls/{pollId}/vote
- * Cast a vote. DynamoDB composite key (pollId + userId) prevents duplicate votes.
+ * POST /api/elections/{electionId}/vote
+ * Cast a vote. DynamoDB composite key (electionId + userId) prevents duplicate votes.
+ * Checks election status, eligibility, and candidate validity.
  */
 export async function castVote(event) {
   try {
@@ -17,129 +18,173 @@ export async function castVote(event) {
     const authzError = authorize(auth.user, ['VOTER']);
     if (authzError) return authzError;
 
-    const { pollId } = event.pathParameters;
+    const { electionId } = event.pathParameters;
     const body = parseBody(event);
     if (!body) return error('Invalid JSON body');
 
-    const { selectedOptionId } = body;
+    const { candidateId } = body;
 
-    if (!selectedOptionId) {
-      return error('selectedOptionId is required');
+    if (!candidateId) {
+      return error('candidateId is required');
     }
 
-    // Verify poll exists and is active
-    const pollResult = await docClient.send(
+    // Verify election exists and check status
+    const electionResult = await docClient.send(
       new GetCommand({
-        TableName: TABLES.POLLS,
-        Key: { pollId },
+        TableName: TABLES.ELECTIONS,
+        Key: { electionId },
       })
     );
 
-    if (!pollResult.Item) {
-      return error('Poll not found', 404);
+    if (!electionResult.Item) {
+      return error('Election not found', 404);
     }
 
-    const poll = pollResult.Item;
+    const election = electionResult.Item;
+
+    // Check election status — must be 'open'
+    if (election.status !== 'open') {
+      return error(`This election is currently ${election.status}. Voting is only allowed when the election is open.`);
+    }
+
+    // Also check date range
     const now = new Date();
-    const start = new Date(poll.startDate);
-    const end = new Date(poll.endDate);
+    const start = new Date(election.startDate);
+    const end = new Date(election.endDate);
 
     if (now < start) {
-      return error('This poll has not started yet');
+      return error('This election has not started yet');
     }
 
     if (now > end) {
-      return error('This poll has ended');
+      return error('This election has ended');
     }
 
-    // Verify option is valid
-    const validOption = poll.options.find((o) => o.id === selectedOptionId);
-    if (!validOption) {
-      return error('Invalid option selected');
+    // Check voter eligibility
+    const voterResult = await docClient.send(
+      new GetCommand({
+        TableName: TABLES.USERS,
+        Key: { userId: auth.user.userId },
+      })
+    );
+
+    if (!voterResult.Item) {
+      return error('Voter not found', 404);
     }
 
-    // Check if already voted (using conditional put)
+    const voter = voterResult.Item;
+
+    if (voter.eligible === false) {
+      return error('You are not eligible to vote. Please contact an administrator.');
+    }
+
+    // Check election-specific eligibility rules
+    if (election.eligibilityRules) {
+      const rules = election.eligibilityRules;
+      if (rules.year && voter.year && voter.year !== rules.year) {
+        return error(`This election is restricted to year ${rules.year} students.`);
+      }
+      if (rules.program && voter.program && voter.program.toLowerCase() !== rules.program.toLowerCase()) {
+        return error(`This election is restricted to ${rules.program} students.`);
+      }
+    }
+
+    // Verify candidate is valid
+    const validCandidate = election.candidates.find((c) => c.id === candidateId);
+    if (!validCandidate) {
+      return error('Invalid candidate selected');
+    }
+
+    // Check if already voted (using conditional put for atomicity)
     try {
       await docClient.send(
         new PutCommand({
           TableName: TABLES.VOTES,
           Item: {
-            pollId,
+            electionId,
             userId: auth.user.userId,
-            selectedOptionId,
+            candidateId,
             voterName: auth.user.name,
             votedAt: new Date().toISOString(),
           },
-          ConditionExpression: 'attribute_not_exists(pollId) AND attribute_not_exists(userId)',
+          ConditionExpression: 'attribute_not_exists(electionId) AND attribute_not_exists(userId)',
         })
       );
     } catch (condErr) {
       if (condErr.name === 'ConditionalCheckFailedException') {
-        return error('You have already voted on this poll');
+        return error('You have already voted in this election');
       }
       throw condErr;
     }
 
     return success({ message: 'Vote cast successfully' }, 201);
   } catch (err) {
-    logger.error({ err, pollId, action: 'castVote' }, 'CastVote error');
+    logger.error({ err, action: 'castVote' }, 'CastVote error');
     return error('Internal server error', 500);
   }
 }
 
 /**
- * GET /api/polls/{pollId}/results
- * Get aggregated vote counts for a poll (for Recharts visualization).
+ * GET /api/elections/{electionId}/results
+ * Get aggregated vote counts for an election (for Recharts visualization).
  */
 export async function getResults(event) {
   try {
     const auth = authenticate(event);
     if (auth.error) return auth.error;
 
-    const { pollId } = event.pathParameters;
+    const { electionId } = event.pathParameters;
 
-    // Get poll details
-    const pollResult = await docClient.send(
+    // Get election details
+    const electionResult = await docClient.send(
       new GetCommand({
-        TableName: TABLES.POLLS,
-        Key: { pollId },
+        TableName: TABLES.ELECTIONS,
+        Key: { electionId },
       })
     );
 
-    if (!pollResult.Item) {
-      return error('Poll not found', 404);
+    if (!electionResult.Item) {
+      return error('Election not found', 404);
     }
 
-    const poll = pollResult.Item;
+    const election = electionResult.Item;
 
-    // Get all votes for this poll
+    // Get all votes for this election
     const votesResult = await docClient.send(
       new QueryCommand({
         TableName: TABLES.VOTES,
-        KeyConditionExpression: 'pollId = :pollId',
-        ExpressionAttributeValues: { ':pollId': pollId },
+        KeyConditionExpression: 'electionId = :electionId',
+        ExpressionAttributeValues: { ':electionId': electionId },
       })
     );
 
     const votes = votesResult.Items || [];
 
-    // Aggregate vote counts per option
+    // Restrict voters from seeing results before voting unless election is closed
+    if (auth.user.role === 'VOTER') {
+      const hasVoted = votes.some((v) => v.userId === auth.user.userId);
+      if (!hasVoted && election.status !== 'closed') {
+        return error('You must vote before viewing results of an active election', 403);
+      }
+    }
+
+    // Aggregate vote counts per candidate
     const voteCounts = {};
-    poll.options.forEach((opt) => {
-      voteCounts[opt.id] = 0;
+    election.candidates.forEach((c) => {
+      voteCounts[c.id] = 0;
     });
 
     votes.forEach((vote) => {
-      if (voteCounts[vote.selectedOptionId] !== undefined) {
-        voteCounts[vote.selectedOptionId]++;
+      if (voteCounts[vote.candidateId] !== undefined) {
+        voteCounts[vote.candidateId]++;
       }
     });
 
     // Format for Recharts
-    const results = poll.options.map((opt) => ({
-      id: opt.id,
-      name: opt.text,
-      votes: voteCounts[opt.id] || 0,
+    const results = election.candidates.map((c) => ({
+      id: c.id,
+      name: c.name,
+      votes: voteCounts[c.id] || 0,
     }));
 
     const totalVotes = votes.length;
@@ -148,11 +193,13 @@ export async function getResults(event) {
     const userVote = votes.find((v) => v.userId === auth.user.userId);
 
     return success({
-      poll: {
-        pollId: poll.pollId,
-        title: poll.title,
-        startDate: poll.startDate,
-        endDate: poll.endDate,
+      election: {
+        electionId: election.electionId,
+        title: election.title,
+        description: election.description,
+        startDate: election.startDate,
+        endDate: election.endDate,
+        status: election.status,
       },
       results,
       totalVotes,
@@ -160,7 +207,7 @@ export async function getResults(event) {
       userVote: userVote || null,
     });
   } catch (err) {
-    logger.error({ err, pollId, action: 'getResults' }, 'GetResults error');
+    logger.error({ err, action: 'getResults' }, 'GetResults error');
     return error('Internal server error', 500);
   }
 }

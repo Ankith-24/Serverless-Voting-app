@@ -2,7 +2,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieCha
 
 const COLORS = ['#6366f1', '#a855f7', '#ec4899', '#10b981', '#f59e0b', '#06b6d4', '#ef4444', '#8b5cf6'];
 
-export function PollBarChart({ data }) {
+export function ElectionBarChart({ data }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
@@ -26,7 +26,7 @@ export function PollBarChart({ data }) {
   );
 }
 
-export function PollPieChart({ data }) {
+export function ElectionPieChart({ data }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <PieChart>

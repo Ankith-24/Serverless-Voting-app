@@ -1,26 +1,44 @@
 [
   {
     "userId": "sa-001",
-    "name": "Super Admin",
+    "name": "Platform Admin",
     "email": "admin@pollapp.com",
-    "passwordHash": "$2a$10$8KzaNdKIMyOkASCmkHF.eOY4pXMgpVv5Gv8PDXGQ3gVz3hhqZYBHi",
+    "password": "admin123",
     "role": "SUPER_ADMIN",
+    "eligible": true,
     "createdAt": "2026-01-01T00:00:00.000Z"
   },
   {
     "userId": "admin-001",
-    "name": "Poll Admin",
+    "name": "Prof. Election Admin",
     "email": "polladmin@pollapp.com",
-    "passwordHash": "$2a$10$8KzaNdKIMyOkASCmkHF.eOY4pXMgpVv5Gv8PDXGQ3gVz3hhqZYBHi",
+    "password": "admin123",
     "role": "ADMIN",
+    "eligible": true,
     "createdAt": "2026-01-01T00:00:00.000Z"
   },
   {
-    "userId": "voter-001",
-    "name": "Test Voter",
-    "email": "voter@pollapp.com",
-    "passwordHash": "$2a$10$8KzaNdKIMyOkASCmkHF.eOY4pXMgpVv5Gv8PDXGQ3gVz3hhqZYBHi",
+    "userId": "student-001",
+    "name": "Alice Student",
+    "email": "alice@pollapp.com",
+    "password": "admin123",
     "role": "VOTER",
+    "studentId": "STU2026001",
+    "year": "3",
+    "program": "Computer Science",
+    "eligible": true,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "userId": "student-002",
+    "name": "Bob Student",
+    "email": "bob@pollapp.com",
+    "password": "admin123",
+    "role": "VOTER",
+    "studentId": "STU2026002",
+    "year": "2",
+    "program": "Engineering",
+    "eligible": true,
     "createdAt": "2026-01-01T00:00:00.000Z"
   }
 ]

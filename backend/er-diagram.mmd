@@ -1,0 +1,49 @@
+erDiagram
+  USERS {
+    string userId PK
+    string name
+    string email
+    string role
+    string passwordHash
+    string studentId
+    string year
+    string program
+    boolean eligible
+    string createdAt
+  }
+
+  ELECTIONS {
+    string electionId PK
+    string title
+    string description
+    string startDate
+    string endDate
+    string status
+    string createdBy FK
+    string createdByName
+    string createdAt
+    string updatedAt
+  }
+
+  CANDIDATES {
+    string candidateId PK
+    string name
+    string bio
+    string party
+    string position
+    string electionId FK
+  }
+
+  VOTES {
+    string electionId PK,FK
+    string userId PK,FK
+    string candidateId FK
+    string voterName
+    string votedAt
+  }
+
+  USERS ||--o{ ELECTIONS : "creates"
+  ELECTIONS ||--o{ CANDIDATES : "has"
+  USERS ||--o{ VOTES : "casts"
+  ELECTIONS ||--o{ VOTES : "receives"
+  CANDIDATES ||--o{ VOTES : "receives"

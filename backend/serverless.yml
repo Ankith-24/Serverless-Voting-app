@@ -7,9 +7,11 @@ provider:
   runtime: nodejs18.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-east-1'}
+  timeout: 25
+  memorySize: 512
   environment:
     USERS_TABLE: ${self:service}-users-${self:provider.stage}
-    POLLS_TABLE: ${self:service}-polls-${self:provider.stage}
+    ELECTIONS_TABLE: ${self:service}-elections-${self:provider.stage}
     VOTES_TABLE: ${self:service}-votes-${self:provider.stage}
     JWT_SECRET: ${param:jwtSecret}
   iam:
@@ -26,10 +28,10 @@ provider:
             - dynamodb:BatchWriteItem
           Resource:
             - !GetAtt UsersTable.Arn
-            - !GetAtt PollsTable.Arn
+            - !GetAtt ElectionsTable.Arn
             - !GetAtt VotesTable.Arn
             - !Join ['/', [!GetAtt UsersTable.Arn, 'index', '*']]
-            - !Join ['/', [!GetAtt PollsTable.Arn, 'index', '*']]
+            - !Join ['/', [!GetAtt ElectionsTable.Arn, 'index', '*']]
             - !Join ['/', [!GetAtt VotesTable.Arn, 'index', '*']]
   httpApi:
     cors:
@@ -66,6 +68,8 @@ functions:
   # Auth
   register:
     handler: src/handlers/auth.register
+    timeout: 20
+    memorySize: 512
     events:
       - httpApi:
           path: /api/auth/register
@@ -73,6 +77,8 @@ functions:
 
   login:
     handler: src/handlers/auth.login
+    timeout: 20
+    memorySize: 512
     events:
       - httpApi:
           path: /api/auth/login
@@ -80,6 +86,8 @@ functions:
 
   getMe:
     handler: src/handlers/auth.getMe
+    timeout: 15
+    memorySize: 512
     events:
       - httpApi:
           path: /api/auth/me
@@ -114,40 +122,54 @@ functions:
           path: /api/users/{userId}/role
           method: put
 
-  # Polls
-  createPoll:
-    handler: src/handlers/polls.createPoll
+  updateUserEligibility:
+    handler: src/handlers/users.updateUserEligibility
     events:
       - httpApi:
-          path: /api/polls
-          method: post
-
-  getPolls:
-    handler: src/handlers/polls.getPolls
-    events:
-      - httpApi:
-          path: /api/polls
-          method: get
-
-  getPoll:
-    handler: src/handlers/polls.getPoll
-    events:
-      - httpApi:
-          path: /api/polls/{pollId}
-          method: get
-
-  updatePoll:
-    handler: src/handlers/polls.updatePoll
-    events:
-      - httpApi:
-          path: /api/polls/{pollId}
+          path: /api/users/{userId}/eligible
           method: put
 
-  deletePoll:
-    handler: src/handlers/polls.deletePoll
+  # Elections
+  createElection:
+    handler: src/handlers/elections.createElection
     events:
       - httpApi:
-          path: /api/polls/{pollId}
+          path: /api/elections
+          method: post
+
+  getElections:
+    handler: src/handlers/elections.getElections
+    events:
+      - httpApi:
+          path: /api/elections
+          method: get
+
+  getElection:
+    handler: src/handlers/elections.getElection
+    events:
+      - httpApi:
+          path: /api/elections/{electionId}
+          method: get
+
+  updateElection:
+    handler: src/handlers/elections.updateElection
+    events:
+      - httpApi:
+          path: /api/elections/{electionId}
+          method: put
+
+  updateElectionStatus:
+    handler: src/handlers/elections.updateElectionStatus
+    events:
+      - httpApi:
+          path: /api/elections/{electionId}/status
+          method: put
+
+  deleteElection:
+    handler: src/handlers/elections.deleteElection
+    events:
+      - httpApi:
+          path: /api/elections/{electionId}
           method: delete
 
   # Votes
@@ -155,14 +177,14 @@ functions:
     handler: src/handlers/votes.castVote
     events:
       - httpApi:
-          path: /api/polls/{pollId}/vote
+          path: /api/elections/{electionId}/vote
           method: post
 
   getResults:
     handler: src/handlers/votes.getResults
     events:
       - httpApi:
-          path: /api/polls/{pollId}/results
+          path: /api/elections/{electionId}/results
           method: get
 
 resources:
@@ -188,17 +210,17 @@ resources:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
 
-    PollsTable:
+    ElectionsTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: ${self:provider.environment.POLLS_TABLE}
+        TableName: ${self:provider.environment.ELECTIONS_TABLE}
         AttributeDefinitions:
-          - AttributeName: pollId
+          - AttributeName: electionId
             AttributeType: S
           - AttributeName: createdBy
             AttributeType: S
         KeySchema:
-          - AttributeName: pollId
+          - AttributeName: electionId
             KeyType: HASH
         GlobalSecondaryIndexes:
           - IndexName: createdBy-index
@@ -214,12 +236,12 @@ resources:
       Properties:
         TableName: ${self:provider.environment.VOTES_TABLE}
         AttributeDefinitions:
-          - AttributeName: pollId
+          - AttributeName: electionId
             AttributeType: S
           - AttributeName: userId
             AttributeType: S
         KeySchema:
-          - AttributeName: pollId
+          - AttributeName: electionId
             KeyType: HASH
           - AttributeName: userId
             KeyType: RANGE

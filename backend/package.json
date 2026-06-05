@@ -1,13 +1,14 @@
 {
-  "name": "polling-app-backend",
+  "name": "student-voting-backend",
   "version": "1.0.0",
-  "description": "Serverless backend for the Polling App",
+  "description": "Serverless backend for Student Voting System",
   "type": "module",
   "scripts": {
     "dynamo": "java -Djava.library.path=./.dynamodb/DynamoDBLocal_lib -jar ./.dynamodb/DynamoDBLocal.jar -port 8000 -inMemory -sharedDb",
     "setup-db": "node src/setup-db.js",
     "start": "npx serverless offline start",
-    "deploy": "npx serverless deploy"
+    "deploy": "npx serverless deploy",
+    "test": "vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.600.0",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "serverless": "^3.39.0",
-    "serverless-offline": "^13.8.0"
+    "serverless-offline": "^13.8.0",
+    "vitest": "^3.2.6"
   }
 }

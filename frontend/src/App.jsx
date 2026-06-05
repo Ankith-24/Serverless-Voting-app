@@ -6,14 +6,14 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import SuperAdminDashboard from './pages/superadmin/Dashboard';
 import ManageUsers from './pages/superadmin/ManageUsers';
-import AllPolls from './pages/superadmin/AllPolls';
+import AllElections from './pages/superadmin/AllElections';
 import AdminDashboard from './pages/admin/Dashboard';
-import CreatePoll from './pages/admin/CreatePoll';
-import MyPolls from './pages/admin/MyPolls';
+import CreateElection from './pages/admin/CreateElection';
+import MyElections from './pages/admin/MyElections';
 import VoterDashboard from './pages/voter/Dashboard';
-import AvailablePolls from './pages/voter/AvailablePolls';
-import VotePoll from './pages/voter/VotePoll';
-import PollResults from './pages/shared/PollResults';
+import AvailableElections from './pages/voter/AvailableElections';
+import VoteElection from './pages/voter/VoteElection';
+import ElectionResults from './pages/shared/ElectionResults';
 
 function AppLayout({ children }) {
   return (
@@ -47,19 +47,19 @@ export default function App() {
           {/* Super Admin */}
           <Route path="/super-admin" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><AppLayout><SuperAdminDashboard /></AppLayout></ProtectedRoute>} />
           <Route path="/super-admin/users" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><AppLayout><ManageUsers /></AppLayout></ProtectedRoute>} />
-          <Route path="/super-admin/polls" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><AppLayout><AllPolls /></AppLayout></ProtectedRoute>} />
-          <Route path="/super-admin/polls/:pollId/results" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><AppLayout><PollResults /></AppLayout></ProtectedRoute>} />
+          <Route path="/super-admin/elections" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><AppLayout><AllElections /></AppLayout></ProtectedRoute>} />
+          <Route path="/super-admin/elections/:electionId/results" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><AppLayout><ElectionResults /></AppLayout></ProtectedRoute>} />
 
           {/* Admin */}
           <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><AdminDashboard /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/create-poll" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><CreatePoll /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/my-polls" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><MyPolls /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/polls/:pollId/results" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><PollResults /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/create-election" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><CreateElection /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/my-elections" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><MyElections /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/elections/:electionId/results" element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout><ElectionResults /></AppLayout></ProtectedRoute>} />
 
           {/* Voter */}
           <Route path="/voter" element={<ProtectedRoute allowedRoles={['VOTER']}><AppLayout><VoterDashboard /></AppLayout></ProtectedRoute>} />
-          <Route path="/voter/polls" element={<ProtectedRoute allowedRoles={['VOTER']}><AppLayout><AvailablePolls /></AppLayout></ProtectedRoute>} />
-          <Route path="/voter/polls/:pollId" element={<ProtectedRoute allowedRoles={['VOTER']}><AppLayout><VotePoll /></AppLayout></ProtectedRoute>} />
+          <Route path="/voter/elections" element={<ProtectedRoute allowedRoles={['VOTER']}><AppLayout><AvailableElections /></AppLayout></ProtectedRoute>} />
+          <Route path="/voter/elections/:electionId" element={<ProtectedRoute allowedRoles={['VOTER']}><AppLayout><VoteElection /></AppLayout></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

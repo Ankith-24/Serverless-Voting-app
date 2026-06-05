@@ -41,6 +41,7 @@ export function validatePassword(password) {
     return { valid: false, error: 'Password is required' };
   }
 
+
   if (password.length < 6) {
     return { valid: false, error: 'Password must be at least 6 characters' };
   }
@@ -70,11 +71,11 @@ export function validateName(name) {
 }
 
 /**
- * Validate poll title.
+ * Validate election title.
  */
-export function validatePollTitle(title) {
+export function validateElectionTitle(title) {
   if (!title || typeof title !== 'string') {
-    return { valid: false, error: 'Poll title is required' };
+    return { valid: false, error: 'Election title is required' };
   }
 
   const cleaned = sanitize(title);
@@ -87,39 +88,93 @@ export function validatePollTitle(title) {
 }
 
 /**
- * Validate poll options array.
+ * Validate election description (optional).
  */
-export function validatePollOptions(options) {
-  if (!options || !Array.isArray(options)) {
-    return { valid: false, error: 'Options must be an array' };
+export function validateDescription(description) {
+  if (!description || typeof description !== 'string') {
+    return { valid: true, description: '' };
   }
 
-  if (options.length < 2) {
-    return { valid: false, error: 'At least 2 options are required' };
+  const cleaned = sanitize(description);
+
+  if (cleaned.length > 1000) {
+    return { valid: false, error: 'Description must be at most 1000 characters' };
   }
 
-  if (options.length > 20) {
-    return { valid: false, error: 'Maximum 20 options allowed' };
-  }
-
-  const cleaned = options
-    .map((opt) => sanitize(typeof opt === 'string' ? opt : opt?.text || ''))
-    .filter((opt) => opt.length > 0);
-
-  if (cleaned.length < 2) {
-    return { valid: false, error: 'At least 2 non-empty options are required' };
-  }
-
-  const unique = new Set(cleaned.map((o) => o.toLowerCase()));
-  if (unique.size !== cleaned.length) {
-    return { valid: false, error: 'Options must be unique' };
-  }
-
-  return { valid: true, options: cleaned };
+  return { valid: true, description: cleaned };
 }
 
 /**
- * Validate date range for polls.
+ * Validate student ID (optional, alphanumeric, max 20 chars).
+ */
+export function validateStudentId(studentId) {
+  if (!studentId || typeof studentId !== 'string') {
+    return { valid: true, studentId: '' };
+  }
+
+  const cleaned = sanitize(studentId);
+
+  if (cleaned.length > 20) {
+    return { valid: false, error: 'Student ID must be at most 20 characters' };
+  }
+
+  if (!/^[a-zA-Z0-9]+$/.test(cleaned)) {
+    return { valid: false, error: 'Student ID must be alphanumeric' };
+  }
+
+  return { valid: true, studentId: cleaned };
+}
+
+/**
+ * Validate candidates array for an election.
+ * Each candidate: { name (required), bio (optional), party (optional), position (optional) }
+ */
+export function validateCandidates(candidates) {
+  if (!candidates || !Array.isArray(candidates)) {
+    return { valid: false, error: 'Candidates must be an array' };
+  }
+
+  if (candidates.length < 2) {
+    return { valid: false, error: 'At least 2 candidates are required' };
+  }
+
+  if (candidates.length > 20) {
+    return { valid: false, error: 'Maximum 20 candidates allowed' };
+  }
+
+  const cleaned = [];
+  for (const candidate of candidates) {
+    // Support both string and object formats
+    if (typeof candidate === 'string') {
+      const name = sanitize(candidate);
+      if (!name) continue;
+      cleaned.push({ name });
+    } else if (candidate && typeof candidate === 'object') {
+      const name = sanitize(candidate.name || '');
+      if (!name) continue;
+      cleaned.push({
+        name,
+        bio: sanitize(candidate.bio || ''),
+        party: sanitize(candidate.party || ''),
+        position: sanitize(candidate.position || ''),
+      });
+    }
+  }
+
+  if (cleaned.length < 2) {
+    return { valid: false, error: 'At least 2 candidates with valid names are required' };
+  }
+
+  const uniqueNames = new Set(cleaned.map((c) => c.name.toLowerCase()));
+  if (uniqueNames.size !== cleaned.length) {
+    return { valid: false, error: 'Candidate names must be unique' };
+  }
+
+  return { valid: true, candidates: cleaned };
+}
+
+/**
+ * Validate date range for elections.
  */
 export function validateDateRange(startDate, endDate) {
   if (!startDate || !endDate) {
@@ -139,6 +194,13 @@ export function validateDateRange(startDate, endDate) {
 
   if (end <= start) {
     return { valid: false, error: 'End date must be after start date' };
+  }
+
+  // Reject start dates in the past (with 5 minute grace period)
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - 5);
+  if (start < now) {
+    return { valid: false, error: 'Start date cannot be in the past' };
   }
 
   return { valid: true, startDate: start.toISOString(), endDate: end.toISOString() };

@@ -3,18 +3,19 @@ import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import bcrypt from "bcryptjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const client = new DynamoDBClient({
   region: 'localhost',
-  endpoint: 'http://localhost:8000',
+  endpoint: 'http://127.0.0.1:8000',
   credentials: { accessKeyId: 'MockAccessKeyId', secretAccessKey: 'MockSecretAccessKey' },
 });
 const docClient = DynamoDBDocumentClient.from(client, { marshallOptions: { removeUndefinedValues: true } });
 
 const USERS_TABLE = 'polling-app-users-dev';
-const POLLS_TABLE = 'polling-app-polls-dev';
+const ELECTIONS_TABLE = 'polling-app-elections-dev';
 const VOTES_TABLE = 'polling-app-votes-dev';
 
 const tables = [
@@ -33,10 +34,10 @@ const tables = [
     BillingMode: 'PAY_PER_REQUEST',
   },
   {
-    TableName: POLLS_TABLE,
-    KeySchema: [{ AttributeName: 'pollId', KeyType: 'HASH' }],
+    TableName: ELECTIONS_TABLE,
+    KeySchema: [{ AttributeName: 'electionId', KeyType: 'HASH' }],
     AttributeDefinitions: [
-      { AttributeName: 'pollId', AttributeType: 'S' },
+      { AttributeName: 'electionId', AttributeType: 'S' },
       { AttributeName: 'createdBy', AttributeType: 'S' },
     ],
     GlobalSecondaryIndexes: [{
@@ -49,11 +50,11 @@ const tables = [
   {
     TableName: VOTES_TABLE,
     KeySchema: [
-      { AttributeName: 'pollId', KeyType: 'HASH' },
+      { AttributeName: 'electionId', KeyType: 'HASH' },
       { AttributeName: 'userId', KeyType: 'RANGE' },
     ],
     AttributeDefinitions: [
-      { AttributeName: 'pollId', AttributeType: 'S' },
+      { AttributeName: 'electionId', AttributeType: 'S' },
       { AttributeName: 'userId', AttributeType: 'S' },
     ],
     BillingMode: 'PAY_PER_REQUEST',
@@ -80,9 +81,29 @@ async function setup() {
   const seedPath = join(__dirname, '..', 'seed', 'users.json');
   const users = JSON.parse(readFileSync(seedPath, 'utf8'));
 
+  // for (const user of users) {
+  //   await docClient.send(new PutCommand({ TableName: USERS_TABLE, Item: user }));
+  //   console.log(`  ✅ Seeded user: ${user.email} (${user.role})`);
+  // }
+
   for (const user of users) {
-    await docClient.send(new PutCommand({ TableName: USERS_TABLE, Item: user }));
-    console.log(`  ✅ Seeded user: ${user.email} (${user.role})`);
+    const passwordHash = await bcrypt.hash(user.password, 10);
+
+    const item = {
+      ...user,
+      passwordHash,
+    };
+
+    delete item.password;
+
+    await docClient.send(
+      new PutCommand({
+        TableName: USERS_TABLE,
+        Item: item,
+      })
+    );
+
+    console.log(`✅ Seeded user: ${user.email}`);
   }
 
   console.log('\n🎉 Setup complete! You can now start the API with: npm start\n');

@@ -12,7 +12,7 @@ import { docClient, TABLES } from '../utils/dynamodb.js';
 import { authenticate, authorize } from '../utils/auth-middleware.js';
 import { success, error } from '../utils/response.js';
 import logger from '../utils/logger.js';
-import { validateEmail, validatePassword, validateName, parseBody } from '../utils/validators.js';
+import { validateEmail, validatePassword, validateName, validateStudentId, parseBody } from '../utils/validators.js';
 
 /**
  * GET /api/users
@@ -42,6 +42,7 @@ export async function getUsers(event) {
 /**
  * POST /api/users
  * Add a new user directly (Super Admin only).
+ * Accepts optional student fields: studentId, year, program, eligible.
  */
 export async function createUser(event) {
   try {
@@ -54,7 +55,7 @@ export async function createUser(event) {
     const body = parseBody(event);
     if (!body) return error('Invalid JSON body');
 
-    const { name: rawName, email: rawEmail, password, role } = body;
+    const { name: rawName, email: rawEmail, password, role, studentId: rawStudentId, year, program, eligible } = body;
 
     // Validate inputs
     const nameResult = validateName(rawName);
@@ -65,6 +66,12 @@ export async function createUser(event) {
 
     const passResult = validatePassword(password);
     if (!passResult.valid) return error(passResult.error);
+
+    // Validate optional student ID
+    if (rawStudentId) {
+      const sidResult = validateStudentId(rawStudentId);
+      if (!sidResult.valid) return error(sidResult.error);
+    }
 
     const name = nameResult.name;
     const email = emailResult.email;
@@ -97,6 +104,10 @@ export async function createUser(event) {
       email,
       passwordHash,
       role: role || 'VOTER',
+      studentId: rawStudentId ? rawStudentId.trim() : undefined,
+      year: year ? String(year).trim() : undefined,
+      program: program ? String(program).trim() : undefined,
+      eligible: eligible !== undefined ? eligible : true,
       createdAt: new Date().toISOString(),
     };
 
@@ -214,6 +225,56 @@ export async function updateUserRole(event) {
     return success({ message: `User role updated to ${role}` });
   } catch (err) {
     logger.error({ err, userId, action: 'updateUserRole' }, 'UpdateUserRole error');
+    return error('Internal server error', 500);
+  }
+}
+
+/**
+ * PUT /api/users/{userId}/eligible
+ * Toggle user eligibility (Super Admin only).
+ */
+export async function updateUserEligibility(event) {
+  try {
+    const auth = authenticate(event);
+    if (auth.error) return auth.error;
+
+    const authzError = authorize(auth.user, ['SUPER_ADMIN']);
+    if (authzError) return authzError;
+
+    const { userId } = event.pathParameters;
+    const body = JSON.parse(event.body || '{}');
+    const { eligible } = body;
+
+    if (typeof eligible !== 'boolean') {
+      return error('eligible must be a boolean (true or false)');
+    }
+
+    // Check user exists
+    const existing = await docClient.send(
+      new GetCommand({
+        TableName: TABLES.USERS,
+        Key: { userId },
+      })
+    );
+
+    if (!existing.Item) {
+      return error('User not found', 404);
+    }
+
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLES.USERS,
+        Key: { userId },
+        UpdateExpression: 'SET eligible = :eligible',
+        ExpressionAttributeValues: { ':eligible': eligible },
+      })
+    );
+
+    logger.info({ userId, eligible, action: 'updateUserEligibility', updatedBy: auth.user.userId }, 'User eligibility updated');
+
+    return success({ message: `User eligibility updated to ${eligible}` });
+  } catch (err) {
+    logger.error({ err, userId, action: 'updateUserEligibility' }, 'UpdateUserEligibility error');
     return error('Internal server error', 500);
   }
 }
